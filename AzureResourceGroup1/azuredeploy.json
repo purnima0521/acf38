@@ -1,0 +1,168 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "ubuType": {
+      "type": "string",
+      "defaultValue": "Standard_LRS",
+      "allowedValues": [
+        "Standard_LRS",
+        "Standard_ZRS",
+        "Standard_GRS",
+        "Standard_RAGRS",
+        "Premium_LRS"
+      ]
+    },
+    "ubuntu-acf38Name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ubuntu-acf38AdminUserName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ubuntu-acf38AdminPassword": {
+      "type": "securestring"
+    },
+    "ubuntu-acf38UbuntuOSVersion": {
+      "type": "string",
+      "defaultValue": "14.04.2-LTS",
+      "allowedValues": [
+        "12.04.5-LTS",
+        "14.04.2-LTS"
+      ]
+    }},
+  "variables": {
+    "ubuName": "[concat('ubu', uniqueString(resourceGroup().id))]",
+    "vnetPrefix": "10.0.0.0/16",
+    "vnetSubnet1Name": "Subnet-1",
+    "vnetSubnet1Prefix": "10.0.0.0/24",
+    "vnetSubnet2Name": "Subnet-2",
+    "vnetSubnet2Prefix": "10.0.1.0/24",
+    "ubuntu-acf38ImagePublisher": "Canonical",
+    "ubuntu-acf38ImageOffer": "UbuntuServer",
+    "ubuntu-acf38OSDiskName": "ubuntu-acf38OSDisk",
+    "ubuntu-acf38VmSize": "Standard_B1s",
+    "ubuntu-acf38VnetID": "[resourceId('Microsoft.Network/virtualNetworks', 'vnet')]",
+    "ubuntu-acf38SubnetRef": "[concat(variables('ubuntu-acf38VnetID'), '/subnets/', variables('vnetSubnet1Name'))]",
+    "ubuntu-acf38StorageAccountContainerName": "vhds",
+    "ubuntu-acf38NicName": "[concat(parameters('ubuntu-acf38Name'), 'NetworkInterface')]"},
+  "resources": [
+    {
+      "name": "[variables('ubuName')]",
+      "type": "Microsoft.Storage/storageAccounts",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-01-01",
+      "sku": {
+        "name": "[parameters('ubuType')]"
+      },
+      "dependsOn": [ ],
+      "tags": {
+        "displayName": "ubu"
+      },
+      "kind": "Storage"
+    },
+    {
+      "name": "vnet",
+      "type": "Microsoft.Network/virtualNetworks",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-03-30",
+      "dependsOn": [ ],
+      "tags": {
+        "displayName": "vnet"
+      },
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[variables('vnetPrefix')]"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('vnetSubnet1Name')]",
+            "properties": {
+              "addressPrefix": "[variables('vnetSubnet1Prefix')]"
+            }
+          },
+          {
+            "name": "[variables('vnetSubnet2Name')]",
+            "properties": {
+              "addressPrefix": "[variables('vnetSubnet2Prefix')]"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "[variables('ubuntu-acf38NicName')]",
+      "type": "Microsoft.Network/networkInterfaces",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-03-30",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', 'vnet')]"
+      ],
+      "tags": {
+        "displayName": "ubuntu-acf38Nic"
+      },
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[variables('ubuntu-acf38SubnetRef')]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "[parameters('ubuntu-acf38Name')]",
+      "type": "Microsoft.Compute/virtualMachines",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2015-06-15",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('ubuName'))]",
+        "[resourceId('Microsoft.Network/networkInterfaces', variables('ubuntu-acf38NicName'))]"
+      ],
+      "tags": {
+        "displayName": "ubuntu-acf38"
+      },
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[variables('ubuntu-acf38VmSize')]"
+        },
+        "osProfile": {
+          "computerName": "[parameters('ubuntu-acf38Name')]",
+          "adminUsername": "[parameters('ubuntu-acf38AdminUsername')]",
+          "adminPassword": "[parameters('ubuntu-acf38AdminPassword')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "[variables('ubuntu-acf38ImagePublisher')]",
+            "offer": "[variables('ubuntu-acf38ImageOffer')]",
+            "sku": "[parameters('ubuntu-acf38UbuntuOSVersion')]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "name": "ubuntu-acf38OSDisk",
+            "vhd": {
+              "uri": "[concat(reference(resourceId('Microsoft.Storage/storageAccounts', variables('ubuName')), '2016-01-01').primaryEndpoints.blob, variables('ubuntu-acf38StorageAccountContainerName'), '/', variables('ubuntu-acf38OSDiskName'), '.vhd')]"
+            },
+            "caching": "ReadWrite",
+            "createOption": "FromImage"
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('ubuntu-acf38NicName'))]"
+            }
+          ]
+        }
+      }
+    }],
+  "outputs": {}
+}
